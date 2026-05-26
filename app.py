@@ -10,13 +10,28 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
 # ── Config ────────────────────────────────────────────────────────────────────
-SB_PROTEINS = {
-    'CHILI CON CARNE 7CVTS SB','CREVETTE A LA MEXICAINE SB 7CVT',
-    "EMINCE DE VOLAILLE SAUCE MEXICAINE D'HIVER 7CVT SB",
-    'FALAFEL POIS CHICHE COURGETTE BIO SB 7CVT','MOZZARELLA SB ',
-    'OEUF DUR SB 7CVT','THON SB 7CVT','TOFU GRILLE CAJUN 7CVTS SB',
-    'POULET MARINE PESTO ROUGE SB 7CVT','JAMBON ROSTELLO SB 7CVT','MORTADELLE SB 7CVT',
+# Mots-clés pour détecter les protéines du salade bar
+# Indépendant des quantités (7CVT, 10CVT, etc.)
+SB_PROTEIN_KEYWORDS = [
+    'POULET', 'VOLAILLE', 'DINDE', 'CANARD',
+    'THON', 'SAUMON', 'CREVETTE', 'CABILLAUD', 'MAQUEREAU',
+    'OEUF',
+    'MOZZARELLA', 'FETA', 'CHEVRE', 'FROMAGE',
+    'JAMBON', 'MORTADELLE', 'CHORIZO', 'BACON', 'LARDONS',
+    'TOFU', 'FALAFEL', 'CHILI', 'EDAMAME', 'NEM',
+    'BOEUF', 'VEAU', 'AGNEAU',
+]
+# Exclusions explicites (faux positifs dus aux mots-clés)
+SB_PROTEIN_EXCLUSIONS = {
+    'CIBOULETTE',  # contient "BOULET" mais n'est pas une proteine
 }
+
+def is_sb_protein(recette):
+    """Détecte si une recette salade bar est une protéine par mots-clés."""
+    rec_up = recette.upper().strip()
+    if rec_up in SB_PROTEIN_EXCLUSIONS:
+        return False
+    return any(mot in rec_up for mot in SB_PROTEIN_KEYWORDS)
 CATEGORY_ORDER = [
     'ENTREES','SALADE BAR','GRANDES SALADES','GRAND SANDWICH','SANDWICH CHAUD','MINI SANDWICH',
     'PLAT VIANDE/VOLAILLE 🍗🥩','PLAT VIANDE/VOLAILLE - CONSIGNE 🍗🥩','PLAT VIANDE/VOLAILLE - YSL 🍗🥩','PLAT VIANDE/VOLAILLE - CUISSON MINUTE 🍗🥩',
@@ -69,7 +84,7 @@ def generer_excel(fichier_source):
     df['Quantité réelle'] = pd.to_numeric(df['Quantité réelle'], errors='coerce').fillna(0).astype(int)
     df = df[df['Élément de repas'].isin(CATEGORY_ORDER)]
     mask_sb = df['Élément de repas'] == 'SALADE BAR'
-    df = df[~mask_sb | (mask_sb & df['Recette'].isin(SB_PROTEINS))]
+    df = df[~mask_sb | (mask_sb & df['Recette'].apply(is_sb_protein))]
     df['canon'] = df['Élément de repas'].map(lambda x: CANON.get(x, x))
 
     dates = sorted(df['Date du menu'].unique(), key=lambda x: x.split('/')[::-1])
